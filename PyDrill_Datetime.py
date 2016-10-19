@@ -50,6 +50,3 @@ if londonHour >= 9 and londonHour <= 21:
     print 'The London Branch is open for business.'
 else: print 'The London Branch is closed - Cheerio!'
 
-
-if __name__ == "__main__":
-    main()

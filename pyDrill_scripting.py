@@ -14,11 +14,9 @@ import os
 for root, dirs, files in os.walk(r'C:\Users\Dunning\Desktop\A'):
     for ckfile in files:
         for root2, dirs2, files2 in os.walk(r'C:\Users\Dunning\Desktop\B'):
-            # checks to make sure files aren't already in the new folder
+            # checks to make sure files haven't already been moved
             if ckfile not in files2:
-                # checks for .txt files and only moves those files
-                if ckfile.lower().endswith(('.txt')):
-                    # lets user know which files have successfully moved
+                    # Tells you which files have been moved
                     print"Moving "+ckfile+" to back-up folder."
                     copyf = os.path.join(root,ckfile)
                     shutil.move(copyf, r'C:\Users\Dunning\Desktop\B')    

@@ -5,85 +5,113 @@
 # Purpose: Create a UI for working with the script used in a previous drill
 #               (see pyDrill_scripting.py)
 
-import wx
+# Do Tkinter imports
+from tkinter import *
+from tkinter import ttk as ttk, messagebox, filedialog
+
+# Do imports for the code
+from datetime import datetime, timedelta
 import os
-import datetime as dt
+import time
 import shutil
+from glob import glob
 
-class Frame(wx.Frame):
-    def __init__(self, title):
-        wx.Frame.__init__(self, None, title=title, size=(300,250))
 
-        panel = wx.Panel(self)
-        menuBar = wx.MenuBar()
-        fileButton = wx.Menu()
+class FileCheck:
 
-        exitItem = wx.MenuItem(fileButton, wx.ID_EXIT, 'Quit\tCtrl+P')
+    def __init__(self, master):
 
-        #Create menus
-        fileMenu = wx.Menu()
-        editMenu = wx.Menu()
-
-        #Add items to to the menu
-        fileMenu.Append(wx.NewId(), "New File", "Create New")
-        fileMenu.Append(wx.NewId(), "Open")
-        exitItem = fileMenu.Append(wx.NewId(), "Done")
-
-        self.SetMenuBar(menuBar)
-        self.Bind(wx.EVT_MENU, self.Quit, exitItem)
-
-        menuBar.Append(fileMenu, "File")
-        menuBar.Append(editMenu, "Edit")
-
-        # View and select files that are to be moved every 24 hours
-        directory = wx.DirSelector("Choose Folder")
-
-        if not directory.strip():
-            # Exit when the user quits
-            self.exit()
-
-        # View and select recieving folder
-        directory = wx.DirSelector("Choose Recieving Folder")
-
-        if not directory.strip():
-            # Exit when the user quits
-            self.exit()
-        
-        # Create the query box to run the script
-        yesNoBox = wx.MessageDialog(None, 'Check for new files?',wx.YES_NO)
-        yesNoAnswer = yesNoBox.ShowModal()
-        yesNoBox.Destroy()
-
-        # Text box panel
-        wx.TextCtrl(panel, pos=(3, 100), size=(150,50))
-
-        # Text
-        aweText = wx.StaticText(panel, -1, "Transfer Complete", (3,3))
-
-        self.SetTitle('Hello')
-
-        self.Show(True)
-
-    def Quit(self, e):
-        self.Close()
+        # Frame for header
+        self.frame_header = ttk.Frame(master)
+        self.frame_header.pack()
         
         
-app = wx.App()
-frame = Frame("Python GUI")
-frame.Show()
-app.MainLoop()
+        # Set the folder to be checked daily
+        self.dailyFolderName = StringVar()
+        print (self.dailyFolderName)
+        self.daily = (self.dailyFolderName.get())
+        
+        # Set the folder to recieve the copied files
+        self.destFolderName = StringVar()
+        print (self.destFolderName)
+        self.dest = (self.destFolderName.get())
+        
+        # Title
+        headerLabel = ttk.Label(self.frame_header, image = self.logo).grid(row = 0, column = 0, columnspan = 2, pady = 5, sticky = 'w')
+        titleLabel = ttk.Label(self.frame_header, text = 'File Transfer Drill ')
+        titleLabel.grid(row = 0, column = 0, columnspan = 2, pady = 5, sticky = 'w')
 
-for root,dirs,files in os.walk('C:\Users\Dunning\Desktop\B'):
+        # Set up the frame for the labels and buttons
+        self.frame_steps = ttk.Frame(master)
+        self.frame_steps.pack()
+      
+        # Set up buttons   
+        dailyButton = ttk.Button(self.frame_steps, text = 'Daily Folder', command = self.selectDailyFolder)
+        dailyButton.grid(row = 1, column = 0, sticky = 'w')
+        destButton = ttk.Button(self.frame_steps, text = 'Folder to Recieve Copies', command = self.selectDestFolder)
+        destButton.grid(row = 4, column = 0, sticky = 'w')
+        initiateButton = ttk.Button(self.frame_steps, text = 'Check Files', command = lambda: self.timeCompare(self.dailyFileCheck,self.destFileCheck))
+        initiateButton.grid(row = 8, column = 0, sticky = 'w')
+        
+        # path labels
+        self.frame_path = ttk.Frame(master)
+        self.frame_path.pack()
+        dailyPathLabel = ttk.Label(self.frame_steps, text = self.dailyFolderName, textvariable = self.dailyFolderName)
+        dailyPathLabel.grid(row = 1, column = 2, rowspan = 1, sticky = 'W')
+        dailyPathLabel.config(foreground = 'gray')
+        destPathLabel = ttk.Label(self.frame_steps, text = self.destFolderName, textvariable = self.destFolderName)
+        destPathLabel.grid(row = 4, column = 2, rowspan = 1, sticky = 'W')
+        destPathLabel.config(foreground = 'gray')
+   
 
-    for item in files:
-        now = dt.datetime.now()
-        yesterday = now - dt.timedelta(hours=24)
-        path = os.path.join(root,item)
-        st = os.stat(path)
 
-    mod_time = dt.datetime.fromtimestamp(st.st_ctime)
-    if mod_time < yesterday:
-        shutil.move(os.path.join(root,item), 'C:\Users\Dunning\Desktop\A')
-        print('Transfer successful')
-    else:
-        print('%s last modify: %s'%(path,mod_time))
+    # Window used as a browser for the files in the 'daily' folder
+    def selectDailyFolder(self):
+        # open a window in the 'A' Folder
+        self.dailyFileCheck = filedialog.askdirectory(initialdir = "C:\Users\Dunning\Desktop\A", title = "Select the folder to be checked daily") 
+        self.dailyFolderName.set(self.dailyFileCheck)
+        print (self.dailyFileCheck)
+        print (self.dailyFolderName.get())
+        
+# Window used as a browser for the files in the folder to contain copies        
+    def selectDestFolder(self):
+        # open a window in the 'B' Folder
+        self.destFileCheck = filedialog.askdirectory(initialdir = "C:\Users\Dunning\Desktop\B", title = "Select folder to contain copies") 
+        self.destFolderName.set(self.destFileCheck)
+        print (self.destFileCheck)
+        print (self.destFolderName.get())
+
+
+# Script to automate the task of copying files to a specific location (folder B)
+# from their source (folder A) if the files have been created/edited within the past 24
+# hours.                    
+def copyFile(src, dst):
+    # sets current time to a variable
+    now = dt.datetime.now()
+    # sets the time 24 hours ago to a variable
+    ago = now-dt.timedelta(minutes=1440)
+
+    # looks in the source folder which was passed in
+    for file in os.listdir(src):
+         # creates new variable with the full path name to the file
+         full_path = os.path.join(src, file)
+         # sets time stamp to each file to the mtime variable
+         st = os.stat(full_path)
+         mtime = dt.datetime.fromtimestamp(st.st_mtime)
+         # checks to see which files have been edited in the last day
+         if mtime > ago:
+             # checks to make sure only .txt files are being copied
+             if file.lower().endswith(('.txt')):    
+                 shutil.copy(full_path, dst)
+                 print('%s modified %s'%(src +file, mtime))
+
+copyFile("C:\Users\Dunning\Desktop\A", "C:\Users\Dunning\Desktop\B")                    
+
+def main():
+    root = Tk() 
+    root.wm_title("File Check")
+    root.minsize(400, 280)
+    filecheck = FileCheck(root) 
+    root.mainloop()
+
+if __name__ == '__main__' : main() 

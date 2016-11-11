@@ -6,8 +6,8 @@
 #               (see pyDrill_scripting.py)
 
 # Do Tkinter imports
-from tkinter import *
-from tkinter import ttk as ttk, messagebox, filedialog
+from Tkinter import *
+import ttk
 
 # Do imports for the code
 from datetime import datetime, timedelta

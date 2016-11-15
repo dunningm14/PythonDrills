@@ -24,7 +24,7 @@ import glob
 import sqlite3
 
 ## set up the database
-def firstRundb():
+def createDatabase():
     db = sqlite3.connect('test.db')
     print('Database opened')
     db.execute('DROP TABLE IF EXISTS fcRuns')
@@ -53,6 +53,10 @@ class FileCheck:
         self.destFolderName = StringVar()
         print (self.destFolderName)
         self.dest = (self.destFolderName.get())
+
+        self.fcTimestamp = StringVar()
+        print (self.fcTimestamp)
+        self.fcT = (self.fcTimestamp.get())
         
         # Title
         titleLabel = ttk.Label(self.frame_header, text = 'File Transfer Window ')
@@ -80,7 +84,12 @@ class FileCheck:
         destPathLabel.grid(row = 4, column = 2, rowspan = 1, sticky = 'W')
         destPathLabel.config(foreground = 'gray')
    
-
+        # label for the time stamp
+        fcTimeTitleLabel = ttk.Label(self.frame_steps, text = 'The last file check was performed on:  ')
+        fcTimeTitleLabel.grid(row = 7, column = 2, sticky = 'W' )
+        fcTimestampLabel = ttk.Label(self.frame_steps, textvariable = self.fcTimestamp)
+        fcTimestampLabel.grid(row = 8, column = 2, rowspan = 1, sticky = 'W')
+        fcTimestampLabel.config(foreground = 'gray') 
 
     # Window used as a browser for the files in the 'daily' folder
     def selectDailyFolder(self):
@@ -128,7 +137,24 @@ class FileCheck:
                      shutil.copy(full_path,destFileCheck) #copys file to destination
              else:
                      print (full_path, 'not copied')
+        self.fileCheckdb() #inserts timestamp into db table                  
 
+    #inserts timestamps to db
+    def fileCheckdb(self):
+        self.db = sqlite3.connect('test.db')
+        print('Timestamp Database accessed.')
+        self.db.execute("INSERT INTO fcRuns (fcTime) VALUES (datetime(CURRENT_TIMESTAMP, 'localtime'))")
+        print('Timestamp recorded')
+        self.db.commit()
+        self.cursor = self.db.execute('SELECT fcTime FROM fcRuns ORDER BY ID DESC LIMIT 1')
+        for row in self.cursor:
+            print ('The last file check was performed on: ',row)
+            self.fcClock = self.fcTimestamp.set(row)
+            print ('adslkfjlsadf', row)
+            
+        self.db.close()
+        print ('Database closed')
+        
 ## Main Setup
                      
 def main():
@@ -143,4 +169,3 @@ def main():
 if __name__ == '__main__' :
     main() #runs the main function which runs the class and functions
     print ('Program run: Main')
-

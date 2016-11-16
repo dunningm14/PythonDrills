@@ -5,167 +5,151 @@
 # Purpose: Create a database function for the file transfer drill
 #               (see pyDrill_scripting.py)
 
-# Do Tkinter imports
+# kinter imports
 from Tkinter import *
-from tkFileDialog import *
 import ttk
-import tkMessageBox
 
-
-# Do imports for the code
-from datetime import timedelta
+# Other Imports
 import os
-import time
-import shutil
+import shutil 
 import datetime as dt
-import glob
+from tkFileDialog import *
+import time
 
-# Do SQlite import for database
-import sqlite3
+# Database imports
+import sqlite3 
+conn = sqlite3.connect('fileCheck.db') 
+c = conn.cursor()
 
-## set up the database
-def createDatabase():
-    db = sqlite3.connect('test.db')
-    print('Database opened')
-    db.execute('DROP TABLE IF EXISTS fcRuns')
-    db.execute('CREATE TABLE IF NOT EXISTS fcRuns (ID INTEGER PRIMARY KEY AUTOINCREMENT, fcTime TEXT)')
-    print ('Table created.')
-    db.commit()
+root = Tk()
+root.title = ("File Transfer")
+root.geometry('500x120+250+100')
+
+#### Database Table and Functions ####
+
+def create_table():
+    conn = sqlite3.connect("file_check.db")           
+    with conn:                                    
+        c = conn.cursor()
+        unix = time.time()
+        datestamp = str(dt.datetime.fromtimestamp(unix).strftime('%d/%m/%Y'))
+        c.execute("CREATE TABLE IF NOT EXISTS FileCheck(unix REAL, datestamp TEXT)")
+
+        conn.commit()                             
+    conn.close()
+    first_run()                                                                         
+
+def first_run():
+    conn = sqlite3.connect("file_check.db")          
+    with conn:                                       
+        c = conn.cursor()
+        c, count = count_records(c)              
+        unix = time.time()
+        datestamp = str(dt.datetime.fromtimestamp(unix).strftime('%d/%m/%Y'))
+        if count < 1:                             
+                          
+            c.execute("""INSERT INTO FileCheck (unix, datestamp) VALUES (?,?)""",                      
+                      (unix,datestamp,))            
+            conn.commit()
+    conn.close()
+    show_date()
+
+def show_date():
+    conn = sqlite3.connect("file_check.db")           
+    with conn:                                       
+        c = conn.cursor()
+        c.execute("""SELECT unix FROM FileCheck""")
+        data = c.fetchone()[0]                        
+        lastDate = float(data)                     
+        readDate = dt.datetime.fromtimestamp(lastDate).strftime("%m/%d/%Y")
+        var_date.set(readDate)                        
+        conn.commit()
+    conn.close()
+
+def count_records(c):
+    count = ""
+    c.execute("""SELECT COUNT(*) FROM FileCheck""")    
+    count = c.fetchone()[0]                          
+    return c, count
+
+#### Select directories and initiate ####
+
+# Create Browse Buttons
+def get_src():
+                                          
+    srcPath = askdirectory()     
+    var_src.set(srcPath)
+
+def get_dst():
+                                          
+    dstPath = askdirectory()
+    var_dst.set(dstPath)
 
 
-class FileCheck:
-
-    def __init__(self, master):
-
-## Graphical User Interface
-
-        # Frame for header
-        self.frame_header = ttk.Frame(master)
-        self.frame_header.pack()
+def file_trans():
+    now = dt.datetime.now()
+    ago = now-dt.timedelta(hours=24)
+                                            
+    srcPath = var_src.get()
+    dstPath = var_dst.get()
+    for _file in os.listdir(srcPath):  
+        if _file.endswith('.txt'):
+            src = os.path.join(srcPath, _file)
+            dst = os.path.join(dstPath, _file)
+            st = os.stat(src)
+            mtime = dt.datetime.fromtimestamp(st.st_mtime)
+            if mtime > ago:
+                print("( {} ) moved to: {}".format(_file,dstPath))
+                shutil.move(src, dstPath)
         
-        
-        # Set the folder to be checked daily
-        self.dailyFolderName = StringVar()
-        print (self.dailyFolderName)
-        self.daily = (self.dailyFolderName.get())
-        
-        # Set the folder to recieve the copied files
-        self.destFolderName = StringVar()
-        print (self.destFolderName)
-        self.dest = (self.destFolderName.get())
+                
+#### GUI ####
 
-        self.fcTimestamp = StringVar()
-        print (self.fcTimestamp)
-        self.fcT = (self.fcTimestamp.get())
-        
-        # Title
-        titleLabel = ttk.Label(self.frame_header, text = 'File Transfer Window ')
-        titleLabel.grid(row = 0, column = 0, columnspan = 2, pady = 5, sticky = 'w')
+mf = Frame(root)
+mf.pack()
 
-        # Set up the frame for the labels and buttons
-        self.frame_steps = ttk.Frame(master)
-        self.frame_steps.pack()
-      
-        # Set up buttons   
-        dailyButton = ttk.Button(self.frame_steps, text = 'Daily Folder', command = self.selectDailyFolder)
-        dailyButton.grid(row = 1, column = 0, sticky = 'w')
-        destButton = ttk.Button(self.frame_steps, text = 'Folder to Recieve Copies', command = self.selectDestFolder)
-        destButton.grid(row = 4, column = 0, sticky = 'w')
-        initiateButton = ttk.Button(self.frame_steps, text = 'Check Files', command = lambda: self.timeCompare(self.dailyFileCheck,self.destFileCheck))
-        initiateButton.grid(row = 8, column = 0, sticky = 'w')
-        
-        # path labels
-        self.frame_path = ttk.Frame(master)
-        self.frame_path.pack()
-        dailyPathLabel = ttk.Label(self.frame_steps, text = self.dailyFolderName, textvariable = self.dailyFolderName)
-        dailyPathLabel.grid(row = 1, column = 2, rowspan = 1, sticky = 'W')
-        dailyPathLabel.config(foreground = 'gray')
-        destPathLabel = ttk.Label(self.frame_steps, text = self.destFolderName, textvariable = self.destFolderName)
-        destPathLabel.grid(row = 4, column = 2, rowspan = 1, sticky = 'W')
-        destPathLabel.config(foreground = 'gray')
-   
-        # label for the time stamp
-        fcTimeTitleLabel = ttk.Label(self.frame_steps, text = 'The last file check was performed on:  ')
-        fcTimeTitleLabel.grid(row = 7, column = 2, sticky = 'W' )
-        fcTimestampLabel = ttk.Label(self.frame_steps, textvariable = self.fcTimestamp)
-        fcTimestampLabel.grid(row = 8, column = 2, rowspan = 1, sticky = 'W')
-        fcTimestampLabel.config(foreground = 'gray') 
-
-    # Window used as a browser for the files in the 'daily' folder
-    def selectDailyFolder(self):
-        # open a window in the 'A' Folder
-        self.dailyFileCheck = askdirectory(initialdir = "C:\Users\Dunning\Desktop\A", title = "Select the folder to be checked daily") 
-        self.dailyFolderName.set(self.dailyFileCheck)
-        print (self.dailyFileCheck)
-        print (self.dailyFolderName.get())
-        
-    # Window used as a browser for the files in the folder to contain copies        
-    def selectDestFolder(self):
-        # open a window in the 'B' Folder
-        self.destFileCheck = askdirectory(initialdir = "C:\Users\Dunning\Desktop\B", title = "Select folder to contain copies") 
-        self.destFolderName.set(self.destFileCheck)
-        print (self.destFileCheck)
-        print (self.destFolderName.get())
-
-        
-
-# Script to automate the task of copying files to a specific location (folder B)
-# from their source (folder A) if the files have been created/edited within the past 24
-# hours.
-
-    def timeCompare(self, dailyFileCheck, destFileCheck):
-        # sets current time to a variable
-        now = dt.datetime.now()
-        # sets the time 24 hours ago to a variable
-        ago = now-dt.timedelta(minutes=1440)
-
-        # looks in the source folder which was passed in
-        for file in os.listdir(dailyFileCheck):
-             # creates new variable with the full path name to the file
-             full_path = os.path.join(dailyFileCheck, file)
-             # sets time stamp to each file to the mtime variable
-             st = os.stat(full_path)
-             mtime = dt.datetime.fromtimestamp(st.st_mtime)
-             # checks to see which files have been edited in the last day
-             if mtime > ago:
-                 # checks to make sure only .txt files are being copied
-                 if file.lower().endswith(('.txt')):    
-                     shutil.copy(full_path, destFileCheck)
-                     print('%s modified %s'%(dailyFileCheck +file, mtime)) 
-             if mtime > ago:
-                     print (full_path, "copied to: ", destFileCheck)
-                     shutil.copy(full_path,destFileCheck) #copys file to destination
-             else:
-                     print (full_path, 'not copied')
-        self.fileCheckdb() #inserts timestamp into db table                  
-
-    #inserts timestamps to db
-    def fileCheckdb(self):
-        self.db = sqlite3.connect('test.db')
-        print('Timestamp Database accessed.')
-        self.db.execute("INSERT INTO fcRuns (fcTime) VALUES (datetime(CURRENT_TIMESTAMP, 'localtime'))")
-        print('Timestamp recorded')
-        self.db.commit()
-        self.cursor = self.db.execute('SELECT fcTime FROM fcRuns ORDER BY ID DESC LIMIT 1')
-        for row in self.cursor:
-            print ('The last file check was performed on: ',row)
-            self.fcClock = self.fcTimestamp.set(row)
-            print ('adslkfjlsadf', row)
-            
-        self.db.close()
-        print ('Database closed')
-        
-## Main Setup
-                     
-def main():
-    
-    root = Tk() #needed for tkinter
-    root.wm_title("File Check") #sets the window title
-    root.minsize(400, 280) #sets minimum size the window can be
-    filecheck = FileCheck(root) #sets the class up with root from tkinter
-    root.mainloop() #needed for tkinter
+f1 = Frame(mf, width = 600, height = 250)
+f1.pack(fill = X)
+f2 = Frame(mf, width = 600, height = 250)
+f2.pack()
+f3 = Frame(mf, width = 600, height = 250)
+f3.pack()
 
 
-if __name__ == '__main__' :
-    main() #runs the main function which runs the class and functions
-    print ('Program run: Main')
+var_src = StringVar()
+var_dst = StringVar()
+var_date = StringVar()
+
+
+# select origin folder
+ttk.Label(f1, text = "Source Folder         : ").grid(row = 0, column = 0, sticky = 'w')
+txt_src = Entry(f1, width = 40, textvariable = var_src)
+txt_src.grid(row =0, column =1, padx =2, pady =2, sticky ='we', columnspan = 20)
+Button1 = ttk.Button(f1, text = "Browse", command = get_src)
+Button1.grid(row = 0, column = 22, sticky = 'e', padx = 8, pady = 4)
+
+#select destination folder
+ttk.Label(f2, text = "Destination Folder : ").grid(row = 1, column = 0, sticky = 'w')
+txt_dst = Entry(f2, width = 40, textvariable = var_dst)
+txt_dst.grid(row =1, column =1, padx =2, pady =2, sticky ='we', columnspan = 20)
+Button2 = ttk.Button(f2, text = "Browse", command = get_dst)
+Button2.grid(row = 1, column = 22, sticky = 'e', padx = 8, pady = 4)
+
+#button for performing file transfer
+Button3 = ttk.Button(f3, text= "Transfer Files", width =14, command= file_trans)
+Button3.grid(row = 2, column = 22, sticky = 'e', padx = 10, pady = 10)
+
+#label file transfer date
+lbl_dt = ttk.Label(f3, text = "File Transfer Last Performed On:")
+lbl_dt.grid(row = 2, column = 0, sticky = "w", padx = 8, pady = 4)
+lbl_date = ttk.Label(f3, textvariable = var_date)
+lbl_date.grid(row = 2, column = 1, sticky = "w", padx = 8, pady = 4)
+
+create_table()
+
+
+if __name__ == "__main__":
+    dir_path = Label(root)
+    dir_path.pack()
+    first_run()
+    root.mainloop()
